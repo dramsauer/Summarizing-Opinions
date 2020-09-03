@@ -8,49 +8,58 @@ class NMTModel(nn.Module):
     for a simple, generic encoder + decoder model.
 
     Args:
-      encoder (onmt.encoders.EncoderBase): an encoder object
-      decoder (onmt.decoders.DecoderBase): a decoder object
+      encoder (:obj:`EncoderBase`): an encoder object
+      decoder (:obj:`RNNDecoderBase`): a decoder object
+      multi<gpu (bool): setup for multigpu support
     """
 
-    def __init__(self, encoder, decoder):
+    def __init__(self, encoder, decoder, multigpu=False):
+        self.multigpu = multigpu
         super(NMTModel, self).__init__()
         self.encoder = encoder
         self.decoder = decoder
 
-    def forward(self, src, tgt, lengths, bptt=False, with_align=False):
+    def forward(self, src, tgt, src_sents, lengths, dec_state=None):
         """Forward propagate a `src` and `tgt` pair for training.
         Possible initialized with a beginning decoder state.
 
         Args:
-            src (Tensor): A source sequence passed to encoder.
-                typically for inputs this will be a padded `LongTensor`
-                of size ``(len, batch, features)``. However, may be an
+            src (:obj:`Tensor`):
+                a source sequence passed to encoder.
+                typically for inputs this will be a padded :obj:`LongTensor`
+                of size `[len x batch x features]`. however, may be an
                 image or other generic input depending on encoder.
-            tgt (LongTensor): A target sequence passed to decoder.
-                Size ``(tgt_len, batch, features)``.
-            lengths(LongTensor): The src lengths, pre-padding ``(batch,)``.
-            bptt (Boolean): A flag indicating if truncated bptt is set.
-                If reset then init_state
-            with_align (Boolean): A flag indicating whether output alignment,
-                Only valid for transformer decoder.
-
+            tgt (:obj:`LongTensor`):
+                 a target sequence of size `[tgt_len x batch]`.
+            lengths(:obj:`LongTensor`): the src lengths, pre-padding `[batch]`.
+            dec_state (:obj:`DecoderState`, optional): initial decoder state
         Returns:
-            (FloatTensor, dict[str, FloatTensor]):
+            (:obj:`FloatTensor`, `dict`, :obj:`onmt.Models.DecoderState`):
 
-            * decoder output ``(tgt_len, batch, hidden)``
-            * dictionary attention dists of ``(tgt_len, batch, src_len)``
+                 * decoder output `[tgt_len x batch x hidden]`
+                 * dictionary attention dists of `[tgt_len x batch x src_len]`
+                 * final decoder state
         """
-        dec_in = tgt[:-1]  # exclude last target from inputs
+        tgt = tgt[:-1]  # exclude last target from inputs ?? why
 
-        enc_state, memory_bank, lengths = self.encoder(src, lengths)
+        # import pdb;pdb.set_trace()
+        old_src_sents = src_sents.clone()
 
-        if bptt is False:
-            self.decoder.init_state(src, memory_bank, enc_state)
-        dec_out, attns = self.decoder(dec_in, memory_bank,
-                                      memory_lengths=lengths,
-                                      with_align=with_align)
-        return dec_out, attns
 
-    def update_dropout(self, dropout):
-        self.encoder.update_dropout(dropout)
-        self.decoder.update_dropout(dropout)
+        enc_final, memory_bank, sent_encoder = self.encoder(src,src_sents,lengths)
+
+
+        enc_state =self.decoder.init_decoder_state(src, memory_bank, enc_final)
+
+
+        decoder_outputs, dec_state, attns = \
+            self.decoder(tgt, memory_bank,
+                         enc_state if dec_state is None
+                         else dec_state,sent_encoder=sent_encoder,src_sents=old_src_sents,
+                         memory_lengths=lengths)
+
+        if self.multigpu:
+            # Not yet supported on multi-gpu
+            dec_state = None
+            attns = None
+        return decoder_outputs, attns, dec_state

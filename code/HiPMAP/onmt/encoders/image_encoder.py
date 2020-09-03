@@ -1,13 +1,13 @@
-"""Image Encoder."""
+""" Image Encoder """
 import torch.nn as nn
 import torch.nn.functional as F
 import torch
 
-from onmt.encoders.encoder import EncoderBase
 
-
-class ImageEncoder(EncoderBase):
-    """A simple encoder CNN -> RNN for image src.
+class ImageEncoder(nn.Module):
+    """
+    A simple encoder convolutional -> recurrent neural network for
+    image src.
 
     Args:
         num_layers (int): number of encoder layers.
@@ -41,37 +41,18 @@ class ImageEncoder(EncoderBase):
         self.batch_norm3 = nn.BatchNorm2d(512)
 
         src_size = 512
-        dropout = dropout[0] if type(dropout) is list else dropout
         self.rnn = nn.LSTM(src_size, int(rnn_size / self.num_directions),
                            num_layers=num_layers,
                            dropout=dropout,
                            bidirectional=bidirectional)
         self.pos_lut = nn.Embedding(1000, src_size)
 
-    @classmethod
-    def from_opt(cls, opt, embeddings=None):
-        """Alternate constructor."""
-        if embeddings is not None:
-            raise ValueError("Cannot use embeddings with ImageEncoder.")
-        # why is the model_opt.__dict__ check necessary?
-        if "image_channel_size" not in opt.__dict__:
-            image_channel_size = 3
-        else:
-            image_channel_size = opt.image_channel_size
-        return cls(
-            opt.enc_layers,
-            opt.brnn,
-            opt.enc_rnn_size,
-            opt.dropout[0] if type(opt.dropout) is list else opt.dropout,
-            image_channel_size
-        )
-
     def load_pretrained_vectors(self, opt):
-        """Pass in needed options only when modify function definition."""
+        """ Pass in needed options only when modify function definition."""
         pass
 
     def forward(self, src, lengths=None):
-        """See :func:`onmt.encoders.encoder.EncoderBase.forward()`"""
+        "See :obj:`onmt.encoders.encoder.EncoderBase.forward()`"
 
         batch_size = src.size(0)
         # (batch_size, 64, imgH, imgW)
@@ -125,7 +106,4 @@ class ImageEncoder(EncoderBase):
             all_outputs.append(outputs)
         out = torch.cat(all_outputs, 0)
 
-        return hidden_t, out, lengths
-
-    def update_dropout(self, dropout):
-        self.rnn.dropout = dropout
+        return hidden_t, out

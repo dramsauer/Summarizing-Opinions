@@ -10,7 +10,8 @@ SCALE_WEIGHT = 0.5 ** 0.5
 
 
 class CNNEncoder(EncoderBase):
-    """Encoder based on "Convolutional Sequence to Sequence Learning"
+    """
+    Encoder built on CNN based on
     :cite:`DBLP:journals/corr/GehringAGYD17`.
     """
 
@@ -24,18 +25,8 @@ class CNNEncoder(EncoderBase):
         self.cnn = StackedCNN(num_layers, hidden_size,
                               cnn_kernel_width, dropout)
 
-    @classmethod
-    def from_opt(cls, opt, embeddings):
-        """Alternate constructor."""
-        return cls(
-            opt.enc_layers,
-            opt.enc_rnn_size,
-            opt.cnn_kernel_width,
-            opt.dropout[0] if type(opt.dropout) is list else opt.dropout,
-            embeddings)
-
     def forward(self, input, lengths=None, hidden=None):
-        """See :class:`onmt.modules.EncoderBase.forward()`"""
+        """ See :obj:`onmt.modules.EncoderBase.forward()`"""
         self._check_args(input, lengths, hidden)
 
         emb = self.embeddings(input)
@@ -49,7 +40,4 @@ class CNNEncoder(EncoderBase):
         out = self.cnn(emb_remap)
 
         return emb_remap.squeeze(3).transpose(0, 1).contiguous(), \
-            out.squeeze(3).transpose(0, 1).contiguous(), lengths
-
-    def update_dropout(self, dropout):
-        self.cnn.dropout.p = dropout
+            out.squeeze(3).transpose(0, 1).contiguous()

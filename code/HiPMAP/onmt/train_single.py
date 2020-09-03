@@ -1,18 +1,24 @@
 #!/usr/bin/env python
-"""Training on a single process."""
-import os
+"""
+    Training on a single process
+"""
+from __future__ import division
 
+import argparse
+import os
+import random
 import torch
 
-from onmt.inputters.inputter import build_dataset_iter, patch_fields, \
-    load_old_vocab, old_style_vocab, build_dataset_iter_multiple, IterOnDevice
+import onmt.opts as opts
+
+from onmt.inputters.inputter import build_dataset_iter, lazily_load_dataset, \
+    _load_fields, _collect_report_features
 from onmt.model_builder import build_model
-from onmt.utils.optimizers import Optimizer
-from onmt.utils.misc import set_random_seed
+from onmt.utils.optimizers import build_optim
 from onmt.trainer import build_trainer
 from onmt.models import build_model_saver
 from onmt.utils.logging import init_logger, logger
-from onmt.utils.parse import ArgumentParser
+import pdb
 
 
 def _check_save_model_path(opt):
@@ -23,67 +29,93 @@ def _check_save_model_path(opt):
 
 
 def _tally_parameters(model):
+    n_params = sum([p.nelement() for p in model.parameters()])
     enc = 0
     dec = 0
     for name, param in model.named_parameters():
         if 'encoder' in name:
             enc += param.nelement()
-        else:
+        elif 'decoder' or 'generator' in name:
             dec += param.nelement()
-    return enc + dec, enc, dec
+    return n_params, enc, dec
 
 
-def configure_process(opt, device_id):
+def training_opt_postprocessing(opt, device_id):
+    if opt.word_vec_size != -1:
+        opt.src_word_vec_size = opt.word_vec_size
+        opt.tgt_word_vec_size = opt.word_vec_size
+
+    if opt.layers != -1:
+        opt.enc_layers = opt.layers
+        opt.dec_layers = opt.layers
+
+    opt.brnn = (opt.encoder_type == "brnn")
+
+    if opt.rnn_type == "SRU" and not opt.gpu_ranks:
+        raise AssertionError("Using SRU requires -gpu_ranks set.")
+
+    if torch.cuda.is_available() and not opt.gpu_ranks:
+        logger.info("WARNING: You have a CUDA device, \
+                    should run with -gpu_ranks")
+
+    if opt.seed > 0:
+        torch.manual_seed(opt.seed)
+        # this one is needed for torchtext random call (shuffled iterator)
+        # in multi gpu it ensures datasets are read in the same order
+        random.seed(opt.seed)
+        # some cudnn methods can be random even after fixing the seed
+        # unless you tell it to be deterministic
+        torch.backends.cudnn.deterministic = True
+
     if device_id >= 0:
         torch.cuda.set_device(device_id)
-    set_random_seed(opt.seed, device_id >= 0)
+        if opt.seed > 0:
+            # These ensure same initialization in multi gpu mode
+            torch.cuda.manual_seed(opt.seed)
+
+    return opt
 
 
-def main(opt, device_id, batch_queue=None, semaphore=None):
-    # NOTE: It's important that ``opt`` has been validated and updated
-    # at this point.
-    configure_process(opt, device_id)
+def main(opt, device_id):
+    opt = training_opt_postprocessing(opt, device_id)
     init_logger(opt.log_file)
-    assert len(opt.accum_count) == len(opt.accum_steps), \
-        'Number of accum_count values must match number of accum_steps'
     # Load checkpoint if we resume from a previous training.
     if opt.train_from:
         logger.info('Loading checkpoint from %s' % opt.train_from)
         checkpoint = torch.load(opt.train_from,
                                 map_location=lambda storage, loc: storage)
-        model_opt = ArgumentParser.ckpt_model_opts(checkpoint["opt"])
-        ArgumentParser.update_model_opts(model_opt)
-        ArgumentParser.validate_model_opts(model_opt)
-        logger.info('Loading vocab from checkpoint at %s.' % opt.train_from)
-        vocab = checkpoint['vocab']
+        model_opt = checkpoint['opt']
     else:
         checkpoint = None
         model_opt = opt
-        vocab = torch.load(opt.data + '.vocab.pt')
 
-    # check for code where vocab is saved instead of fields
-    # (in the future this will be done in a smarter way)
-    if old_style_vocab(vocab):
-        fields = load_old_vocab(
-            vocab, opt.model_type, dynamic_dict=opt.copy_attn)
-    else:
-        fields = vocab
+    # Peek the first dataset to determine the data_type.
+    # (All datasets have the same data_type).
+    first_dataset = next(lazily_load_dataset("train", opt))
+    data_type = first_dataset.data_type
 
-    # patch for fields that may be missing in old data/model
-    patch_fields(opt, fields)
 
-    # Report src and tgt vocab sizes, including for features
-    for side in ['src', 'tgt']:
-        f = fields[side]
-        try:
-            f_iter = iter(f)
-        except TypeError:
-            f_iter = [(side, f)]
-        for sn, sf in f_iter:
-            if sf.use_vocab:
-                logger.info(' * %s vocab size = %d' % (sn, len(sf.vocab)))
+
+    # Load fields generated from preprocess phase.
+    fields = _load_fields(first_dataset, data_type, opt, checkpoint)
+
+
+
+    # Report src/tgt features.
+
+    src_features, tgt_features = _collect_report_features(fields)
+
+
+
+    for j, feat in enumerate(src_features):
+        logger.info(' * src feature %d size = %d'
+                    % (j, len(fields[feat].vocab)))
+    for j, feat in enumerate(tgt_features):
+        logger.info(' * tgt feature %d size = %d'
+                    % (j, len(fields[feat].vocab)))
 
     # Build model.
+    #pdb.set_trace()
     model = build_model(model_opt, opt, fields, checkpoint)
     n_params, enc, dec = _tally_parameters(model)
     logger.info('encoder: %d' % enc)
@@ -92,62 +124,38 @@ def main(opt, device_id, batch_queue=None, semaphore=None):
     _check_save_model_path(opt)
 
     # Build optimizer.
-    optim = Optimizer.from_opt(model, opt, checkpoint=checkpoint)
+    optim = build_optim(model, opt, checkpoint)
 
     # Build model saver
     model_saver = build_model_saver(model_opt, opt, model, fields, optim)
 
-    trainer = build_trainer(
-        opt, device_id, model, fields, optim, model_saver=model_saver)
+    trainer = build_trainer(opt, device_id, model, fields,
+                            optim, data_type, model_saver=model_saver)
 
-    if batch_queue is None:
-        if len(opt.data_ids) > 1:
-            train_shards = []
-            for train_id in opt.data_ids:
-                shard_base = "train_" + train_id
-                train_shards.append(shard_base)
-            train_iter = build_dataset_iter_multiple(train_shards, fields, opt)
-        else:
-            if opt.data_ids[0] is not None:
-                shard_base = "train_" + opt.data_ids[0]
-            else:
-                shard_base = "train"
-            train_iter = build_dataset_iter(shard_base, fields, opt)
-        train_iter = IterOnDevice(train_iter, device_id)
-    else:
-        assert semaphore is not None, \
-            "Using batch_queue requires semaphore as well"
+    def train_iter_fct():
 
-        def _train_iter():
-            while True:
-                batch = batch_queue.get()
-                semaphore.release()
-                # Move batch to specified device
-                IterOnDevice.batch_to_device(batch, device_id)
-                yield batch
+        return build_dataset_iter(
+        lazily_load_dataset("train", opt), fields, opt)
 
-        train_iter = _train_iter()
+    def valid_iter_fct(): return build_dataset_iter(
+        lazily_load_dataset("valid", opt), fields, opt, is_train=False)
 
-    valid_iter = build_dataset_iter(
-        "valid", fields, opt, is_train=False)
-    if valid_iter is not None:
-        valid_iter = IterOnDevice(valid_iter, device_id)
+    # Do training.
+    trainer.train(train_iter_fct, valid_iter_fct, opt.train_steps,
+                  opt.valid_steps)
 
-    if len(opt.gpu_ranks):
-        logger.info('Starting training on GPU: %s' % opt.gpu_ranks)
-    else:
-        logger.info('Starting training on CPU, could be very slow')
-    train_steps = opt.train_steps
-    if opt.single_pass and train_steps > 0:
-        logger.warning("Option single_pass is enabled, ignoring train_steps.")
-        train_steps = 0
-
-    trainer.train(
-        train_iter,
-        train_steps,
-        save_checkpoint_steps=opt.save_checkpoint_steps,
-        valid_iter=valid_iter,
-        valid_steps=opt.valid_steps)
-
-    if trainer.report_manager.tensorboard_writer is not None:
+    if opt.tensorboard:
         trainer.report_manager.tensorboard_writer.close()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description='train.py',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+
+    opts.add_md_help_argument(parser)
+    opts.model_opts(parser)
+    opts.train_opts(parser)
+
+    opt = parser.parse_args()
+    main(opt)

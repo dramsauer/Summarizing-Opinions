@@ -5,16 +5,15 @@ import subprocess
 import platform
 import os
 import re
-import configargparse
+import argparse
 import torch
 import torch.nn as nn
 from torch.autograd import Function
-from torch.cuda.amp import custom_fwd, custom_bwd
 from collections import namedtuple
 
 
 # For command-line option parsing
-class CheckSRU(configargparse.Action):
+class CheckSRU(argparse.Action):
     def __init__(self, option_strings, dest, **kwargs):
         super(CheckSRU, self).__init__(option_strings, dest, **kwargs)
 
@@ -393,7 +392,6 @@ class SRU_Compute(Function):
         if SRU_FWD_FUNC is None:
             load_sru_mod()
 
-    @custom_fwd
     def forward(self, u, x, bias, init=None, mask_h=None):
         bidir = 2 if self.bidirectional else 1
         length = x.size(0) if x.dim() == 3 else 1
@@ -439,7 +437,6 @@ class SRU_Compute(Function):
             last_hidden = c[-1]
         return h, last_hidden
 
-    @custom_bwd
     def backward(self, grad_h, grad_last):
         if self.bidirectional:
             grad_last = torch.cat((grad_last[0], grad_last[1]), 1)
@@ -586,6 +583,7 @@ class SRU(nn.Module):
       bidirectional (bool): bidirectional
       use_tanh (bool): activation
       use_relu (bool): activation
+
     """
 
     def __init__(self, input_size, hidden_size,

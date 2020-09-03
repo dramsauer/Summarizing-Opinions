@@ -1,5 +1,7 @@
 """Base class for encoders and generic multi encoders."""
 
+from __future__ import division
+
 import torch.nn as nn
 
 from onmt.utils.misc import aeq
@@ -8,7 +10,7 @@ from onmt.utils.misc import aeq
 class EncoderBase(nn.Module):
     """
     Base encoder class. Specifies the interface used by different encoder types
-    and required by :class:`onmt.Models.NMTModel`.
+    and required by :obj:`onmt.Models.NMTModel`.
 
     .. mermaid::
 
@@ -30,12 +32,8 @@ class EncoderBase(nn.Module):
           E-->G
     """
 
-    @classmethod
-    def from_opt(cls, opt, embeddings=None):
-        raise NotImplementedError
-
     def _check_args(self, src, lengths=None, hidden=None):
-        n_batch = src.size(1)
+        _, n_batch, _ = src.size()
         if lengths is not None:
             n_batch_, = lengths.size()
             aeq(n_batch, n_batch_)
@@ -43,16 +41,14 @@ class EncoderBase(nn.Module):
     def forward(self, src, lengths=None):
         """
         Args:
-            src (LongTensor):
-               padded sequences of sparse indices ``(src_len, batch, nfeat)``
-            lengths (LongTensor): length of each sequence ``(batch,)``
+            src (:obj:`LongTensor`):
+               padded sequences of sparse indices `[src_len x batch x nfeat]`
+            lengths (:obj:`LongTensor`): length of each sequence `[batch]`
 
 
         Returns:
-            (FloatTensor, FloatTensor):
-
-            * final encoder state, used to initialize decoder
-            * memory bank for attention, ``(src_len, batch, hidden)``
+            (tuple of :obj:`FloatTensor`, :obj:`FloatTensor`):
+                * final encoder state, used to initialize decoder
+                * memory bank for attention, `[src_len x batch x hidden]`
         """
-
         raise NotImplementedError

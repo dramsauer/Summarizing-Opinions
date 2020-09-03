@@ -4,6 +4,7 @@ Implementation of "Convolutional Sequence to Sequence Learning"
 import torch
 import torch.nn as nn
 import torch.nn.init as init
+import torch.nn.functional as F
 
 import onmt.modules
 
@@ -30,7 +31,7 @@ class GatedConv(nn.Module):
         x_var = self.dropout(x_var)
         x_var = self.conv(x_var)
         out, gate = x_var.split(int(x_var.size(1) / 2), 1)
-        out = out * torch.sigmoid(gate)
+        out = out * F.sigmoid(gate)
         return out
 
 
