@@ -8,7 +8,7 @@ N_LAYERS = 2
 BIDIRECTIONAL = True
 DROPOUT = 0.25
 
-MODEL_OUTPUT_FILENAME = 'models/output/sentiment_analysis/BERTGRUSentiment-model-MPQA_v2_100.pt'
+MODEL_OUTPUT_FILENAME = '../../../../output/opinion_polarity/BERTGRUSentiment-model-MPQA_v2_100.pt'
 
 bert = BertModel.from_pretrained('bert-base-uncased')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
