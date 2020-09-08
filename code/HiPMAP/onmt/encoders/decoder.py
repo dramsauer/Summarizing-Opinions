@@ -474,6 +474,10 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         # 2333: TODO: compute mmr attention here:
         print ('Now..')
         mmr_among_words = self._run_mmr_attention(sent_encoder, sent_decoder, src_sents,attns["std"][0].size()[-1])
+        print(src_sents)
+        import onmt.p.opinion_polarity.OpinionPolarityPredictor
+        # predictor =
+        print(src_sents)
 
         #  2333: TODO: bring mmr to attention...
 
