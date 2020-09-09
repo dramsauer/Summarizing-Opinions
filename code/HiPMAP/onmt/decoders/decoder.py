@@ -5,6 +5,8 @@ import torch
 import torch.nn as nn
 
 import onmt.models.stacked_rnn
+from onmt.p.opinion_polarity import OpinionPolarityPredictor
+
 from onmt.utils.misc import aeq
 from onmt.utils.rnn_factory import rnn_factory
 import pdb
@@ -308,6 +310,9 @@ class InputFeedRNNDecoder(RNNDecoderBase):
           E --> H
           G --> H
     """
+    def _init_polarity(self):
+        self.polarity_predictor = OpinionPolarityPredictor()
+            
     def _init_mmr(self,dim):
         # for sentence and summary distance.. This is defined as sim 1
         self.mmr_W = nn.Linear(dim, dim, bias=False).cuda() # 512*512
@@ -470,6 +475,8 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
             mmr_among_words = self._run_mmr(sent_encoder, sent_decoder, src_sents,attns["std"][0].size()[-1])
 
+            print(src_sents)
+           
             #  2333: TODO: bring mmr to attention...
 
             for output_step in attns["std"]:
