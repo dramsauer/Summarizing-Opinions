@@ -110,6 +110,8 @@ class RNNDecoderBase(nn.Module):
 
         # init mmr param
         self._init_mmr(hidden_size)
+        self._init_polarity()
+
         # print('Initialized the parameters,',hidden_size)
 
 
@@ -312,7 +314,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
     """
     def _init_polarity(self):
         self.polarity_predictor = OpinionPolarityPredictor()
-            
+
     def _init_mmr(self,dim):
         # for sentence and summary distance.. This is defined as sim 1
         self.mmr_W = nn.Linear(dim, dim, bias=False).cuda() # 512*512
