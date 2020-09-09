@@ -476,7 +476,12 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             mmr_among_words = self._run_mmr(sent_encoder, sent_decoder, src_sents,attns["std"][0].size()[-1])
 
             print(src_sents)
-           
+            sentiment = self.polarity_predictor.predict_sentiment('This film is great')
+            polarity = torch.abs(sentiment)
+            print(sentiment)
+            print(polarity)
+
+
             #  2333: TODO: bring mmr to attention...
 
             for output_step in attns["std"]:
