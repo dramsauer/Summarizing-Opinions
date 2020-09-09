@@ -479,9 +479,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
             print(src_sents)
             sentiment = self.polarity_predictor.predict_sentiment('This film is great')
-            polarity = torch.abs(sentiment)
             print(sentiment)
-            print(polarity)
 
 
             #  2333: TODO: bring mmr to attention...

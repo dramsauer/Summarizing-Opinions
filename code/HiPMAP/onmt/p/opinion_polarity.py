@@ -27,9 +27,6 @@ class OpinionPolarityPredictor(object):
             bert=BertModel.from_pretrained('bert-base-uncased')
         )
         self.model = self.model.to(device)
-        import os
-        print(os.getcwd())
-        print(os.listdir('../../../'))
         self.model.load_state_dict(torch.load(MODEL_OUTPUT_FILENAME))
 
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
@@ -41,7 +38,7 @@ class OpinionPolarityPredictor(object):
         indexed = [init_token_idx] + tokenizer.convert_tokens_to_ids(tokens) + [eos_token_idx]
         tensor = torch.LongTensor(indexed).to(device)
         tensor = tensor.unsqueeze(0)
-        prediction = torch.tanh(self.model(tensor))
+        prediction = torch.abs(torch.tanh(self.model(tensor)))
         return prediction.item()
 
 
