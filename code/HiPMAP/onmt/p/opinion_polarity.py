@@ -8,7 +8,7 @@ N_LAYERS = 2
 BIDIRECTIONAL = True
 DROPOUT = 0.25
 
-MODEL_OUTPUT_FILENAME = '../../../../output/opinion_polarity/BERTGRUSentiment-model-MPQA_v2_100.pt'
+MODEL_OUTPUT_FILENAME = '/home/jovyan/Summarizing-Opinions/output/opinion_polarity/BERTGRUSentiment-model-MPQA_v2_100.pt'
 
 bert = BertModel.from_pretrained('bert-base-uncased')
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -27,6 +27,9 @@ class OpinionPolarityPredictor(object):
             bert=BertModel.from_pretrained('bert-base-uncased')
         )
         self.model = self.model.to(device)
+        import os
+        print(os.getcwd())
+        print(os.listdir('../../../'))
         self.model.load_state_dict(torch.load(MODEL_OUTPUT_FILENAME))
 
         self.tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
