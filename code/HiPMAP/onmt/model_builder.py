@@ -59,7 +59,8 @@ def build_embeddings(opt, word_dict, feature_dicts, for_encoder=True):
                       feat_padding_idx=feats_padding_idx,
                       word_vocab_size=num_word_embeddings,
                       feat_vocab_sizes=num_feat_embeddings,
-                      sparse=opt.optim == "sparseadam")
+                      sparse=opt.optim == "sparseadam",
+                      word_dict=word_dict)
 
 
 def build_encoder(opt, embeddings):
