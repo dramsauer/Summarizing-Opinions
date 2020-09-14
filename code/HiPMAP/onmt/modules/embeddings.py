@@ -95,12 +95,13 @@ class Embeddings(nn.Module):
                  feat_padding_idx=[],
                  feat_vocab_sizes=[],
                  dropout=0,
-                 sparse=False):
+                 sparse=False,
+                 word_dict=False):
 
         if feat_padding_idx is None:
             feat_padding_idx = []
         self.word_padding_idx = word_padding_idx
-
+        self.word_dict = word_dict
         self.word_vec_size = word_vec_size
 
         # Dimensions and padding for constructing the word embedding matrix
