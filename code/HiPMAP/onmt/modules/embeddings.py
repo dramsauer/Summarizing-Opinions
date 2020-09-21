@@ -102,6 +102,10 @@ class Embeddings(nn.Module):
             feat_padding_idx = []
         self.word_padding_idx = word_padding_idx
         self.word_dict = word_dict
+        if word_dict:  # Creates an reverse lookup dict
+            self.word_lookup_dict = {value: key for key, value in word_dict.stoi.items()}
+        else:
+            self.word_lookup_dict = word_dict
         self.word_vec_size = word_vec_size
 
         # Dimensions and padding for constructing the word embedding matrix
