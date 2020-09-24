@@ -44,6 +44,7 @@ class NMTModel(nn.Module):
         # import pdb;pdb.set_trace()
         old_src_sents = src_sents.clone()
 
+        
         enc_final, memory_bank, sent_encoder = self.encoder(src,src_sents,lengths)
 
 
