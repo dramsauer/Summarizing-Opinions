@@ -116,7 +116,7 @@ class RNNDecoderBase(nn.Module):
 
 
 
-    def forward(self, tgt, memory_bank, state, memory_lengths=None,
+    def forward(self, src, tgt, memory_bank, state, memory_lengths=None,
                 step=None,sent_encoder=None,src_sents=None,dec=None):
         """
         Args:
@@ -149,7 +149,7 @@ class RNNDecoderBase(nn.Module):
 
         # Run the forward pass of the RNN.
         decoder_final, decoder_outputs, attns = self._run_forward_pass(
-            tgt, memory_bank, state, memory_lengths=memory_lengths,sent_encoder=sent_encoder,src_sents=src_sents,dec=dec)
+            src, tgt, memory_bank, state, memory_lengths=memory_lengths,sent_encoder=sent_encoder,src_sents=src_sents,dec=dec)
 
         # Update the state with the result.
         final_output = decoder_outputs[-1]
@@ -314,6 +314,19 @@ class InputFeedRNNDecoder(RNNDecoderBase):
     """
     def _init_polarity(self):
         self.polarity_predictor = OpinionPolarityPredictor()
+        
+    def _run_polarity_scoring(self, src):
+        '''
+        
+        '''
+        self._init_polarity()
+
+        l=torch.split(src, 1, 1)[0].reshape(1, len(src))[0]
+        s = ''
+        for z in l: 
+            s += self.embeddings.word_lookup_dict[int(z)] + ' '
+        polarity_score = self.polarity_predictor.predict_sentiment(s)
+        return polarity_score
 
     def _init_mmr(self,dim):
         # for sentence and summary distance.. This is defined as sim 1
@@ -334,15 +347,16 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         sent_decoder=sent_decoder.permute(1,0,2) # (2,1,512)
 
         scores =[]
+        
         # define sent matrix and current vector distance as the Euclidean distance
         for sent in sent_encoder: # iterate over each batch sample
+            
             # distance: https://pytorch.org/docs/stable/_modules/torch/nn/modules/distance.html
 
             # import pdb;
             # pdb.set_trace()
 
             # sim1=torch.sum(pdist(sent_encoder.permute(1,0,2),sent.unsqueeze(1)),1).unsqueeze(1)  # -> this is sim2 on my equation, note this is distance!
-
             sim1 = 1 - torch.mean(pdist(sent_encoder.permute(1, 0, 2), sent.unsqueeze(1)), 1).unsqueeze(1) # this is a similarity function
             # sim1 shape: (batch_size,1)
 
@@ -385,7 +399,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
 
         return mmr_among_words
 
-    def _run_forward_pass(self, tgt, memory_bank, state, memory_lengths=None,sent_encoder=None,src_sents=None,dec=None):
+    def _run_forward_pass(self, src, tgt, memory_bank, state, memory_lengths=None,sent_encoder=None,src_sents=None,dec=None):
         """
         See StdRNNDecoder._run_forward_pass() for description
         of arguments and return values.
@@ -411,6 +425,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             attns["coverage"] = []
 
         emb = self.embeddings(tgt)
+        
         assert emb.dim() == 3  # len x batch x embedding_dim
 
         hidden = state.hidden
@@ -423,8 +438,9 @@ class InputFeedRNNDecoder(RNNDecoderBase):
         #print("emb size: {}\n".format(emb.size()));exit()
         for _, emb_t in enumerate(emb.split(1)):
             # for each output time step in the loop
-
+            
             emb_t = emb_t.squeeze(0)
+
             decoder_input = torch.cat([emb_t, input_feed], 1)
 
             # TODO: the following is where we get attention!
@@ -476,10 +492,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
             # 2333: TODO: compute mmr attention here:
 
             mmr_among_words = self._run_mmr(sent_encoder, sent_decoder, src_sents,attns["std"][0].size()[-1])
-
-            print(src_sents)
-            sentiment = self.polarity_predictor.predict_sentiment('This film is great')
-            print(sentiment)
+            text_polarity = self._run_polarity_scoring(src)
 
 
             #  2333: TODO: bring mmr to attention...
@@ -488,6 +501,7 @@ class InputFeedRNNDecoder(RNNDecoderBase):
                 attention_weight = output_step
                 # pairwise multiplication
                 attention_weight = torch.mul(mmr_among_words,attention_weight)
+                attention_weight = torch.mul(text_polarity,attention_weight)
                 attns["mmr"].append(attention_weight.cuda())
             # pdb.set_trace()
 
