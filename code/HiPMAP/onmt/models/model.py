@@ -1,6 +1,5 @@
 """ Onmt NMT Model base class definition """
 import torch.nn as nn
-import torch
 
 class NMTModel(nn.Module):
     """
@@ -45,15 +44,7 @@ class NMTModel(nn.Module):
         # import pdb;pdb.set_trace()
         old_src_sents = src_sents.clone()
 
-        print('+-+-+-+-+-+-+-+-+-+-+-+-+')
-        l = torch.split(src, 1, 1)[0].reshape(1, len(src))[0]
-        s = ''
-        for z in l:
-            s += self.encoder.embeddings.word_lookup_dict[int(z)] + ' '
-        print(s)
-        print(l)
-        print('+-+-+-+-+-+-+-+-+-+-+-+-+')
-
+        
         enc_final, memory_bank, sent_encoder = self.encoder(src,src_sents,lengths)
 
 
@@ -61,7 +52,7 @@ class NMTModel(nn.Module):
 
 
         decoder_outputs, dec_state, attns = \
-            self.decoder(tgt, memory_bank,
+            self.decoder(src, tgt, memory_bank,
                          enc_state if dec_state is None
                          else dec_state,sent_encoder=sent_encoder,src_sents=old_src_sents,
                          memory_lengths=lengths)
