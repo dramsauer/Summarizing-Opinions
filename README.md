@@ -13,3 +13,6 @@ You can find the documentation [here](https://opennmt.net/OpenNMT-py/quickstart.
 See also the python implementation of OpenNMT [here](https://github.com/OpenNMT/OpenNMT-py).
 
 Afterwards, the translated summaries are scored via files2rouge package.
+
+Data and outputs files can be found here:
+https://drive.google.com/drive/folders/1jMyCgCT8HR9etUib5fwaINi7QKU05TXO?usp=sharing
