@@ -5,11 +5,10 @@ import torch
 import torch.nn as nn
 
 import onmt.models.stacked_rnn
-from onmt.p.opinion_polarity import OpinionPolarityPredictor
+from onmt.polarity.opinion_polarity import OpinionPolarityPredictor
 
 from onmt.utils.misc import aeq
 from onmt.utils.rnn_factory import rnn_factory
-import pdb
 
 
 class RNNDecoderBase(nn.Module):
