@@ -14,5 +14,5 @@ See also the python implementation of OpenNMT [here](https://github.com/OpenNMT/
 
 Afterwards, the translated summaries are scored via files2rouge package.
 
-Data and outputs files can be found here:
+Data, model files and outputs files can be found here:
 https://drive.google.com/drive/folders/1jMyCgCT8HR9etUib5fwaINi7QKU05TXO?usp=sharing
