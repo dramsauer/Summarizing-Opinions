@@ -1,4 +1,4 @@
-# Code for the paper "Exploring the Incorporation of Opinion Polarityfor Abstractive Multi-Document Summarisation"
+# Code for the paper "Exploring the Incorporation of Opinion Polarity for Abstractive Multi-Document Summarisation"
 
 We use the [OpenNMT](https://opennmt.net/) neural machine translation system, but adapted it in some places.
 
